@@ -1,0 +1,93 @@
+import cv2
+import numpy as np
+import serial.tools.list_ports
+
+# Flag to track if an object is currently detected
+object_present = False
+
+# Serial port setup
+ports = serial.tools.list_ports.comports()
+serialInst = serial.Serial()
+portsList = []
+
+for one in ports:
+    portsList.append(str(one))
+    print(str(one))
+
+com = input("Select Com Port for Arduino #: ")
+
+for i in range(len(portsList)):
+    if portsList[i].startswith("COM" + str(com)):
+        use = "COM" + str(com)
+        print(use)
+
+serialInst.baudrate = 9600
+serialInst.port = use
+serialInst.open()
+
+# Function to detect Red or Blue color in the frame
+def get_color_name(hsv_image):
+    # Red color range (2 parts in HSV)
+    lower_red1 = np.array([0, 120, 70])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([170, 120, 70])
+    upper_red2 = np.array([180, 255, 255])
+
+    # Blue color range
+    lower_blue = np.array([100, 150, 50])
+    upper_blue = np.array([140, 255, 255])
+
+    # Create masks
+    mask_red1 = cv2.inRange(hsv_image, lower_red1, upper_red1)
+    mask_red2 = cv2.inRange(hsv_image, lower_red2, upper_red2)
+    mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+
+    mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
+
+    # Count non-zero pixels
+    red_area = cv2.countNonZero(mask_red)
+    blue_area = cv2.countNonZero(mask_blue)
+
+    detection_threshold = 500
+
+    if red_area > blue_area and red_area > detection_threshold:
+        return "Red"
+    elif blue_area > red_area and blue_area > detection_threshold:
+        return "Blue"
+    else:
+        return "Trash"
+
+# Initialize the webcam
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    color = get_color_name(hsv)
+
+    # Object detection and command sending
+    if color in ["Red", "Blue"]:
+        if not object_present:
+            object_present = True
+            if color == "Red":
+                serialInst.write("RED".encode('utf-8'))
+            elif color == "Blue":
+                serialInst.write("BLUE".encode('utf-8'))
+    else:
+        object_present = False  # Reset if object not detected
+
+    # Display only detected color (no count)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    color_display = {"Red": (0, 0, 255), "Blue": (255, 0, 0), "Trash": (0, 255, 255)}
+    cv2.putText(frame, f"Detected: {color}", (50, 50), font, 1, color_display[color], 2)
+
+    cv2.imshow('Color Classification', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
