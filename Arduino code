@@ -1,0 +1,121 @@
+#include <Servo.h>
+#include <LiquidCrystal.h>
+
+// Motor pins (CHANGED from pin 1 to avoid TX conflict)
+int enA = 5;       // PWM pin 5 instead of 1
+int in1 = 6;
+int in2 = 7;
+
+// Servo Configuration
+Servo sortingServo;
+const int servoPin = 9;
+
+// LCD Configuration
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+// Ultrasonic Sensor
+const int trigPin = 8;
+const int echoPin = 10;
+
+// Counters
+int countred = 0;
+int countblue = 0;
+int counttrash = 0;
+
+void setup() {
+  sortingServo.attach(servoPin, 500, 2500);
+  Serial.begin(9600);
+  
+  pinMode(enA, OUTPUT);
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  lcd.begin(16, 2);
+  stopMotor(); // Initialize motor stopped
+}
+
+void loop() {
+  if(dist() < 15) {
+    stopMotor();
+    Serial.println("READY"); // Handshake signal
+    
+    // Wait for color data with timeout
+    unsigned long startTime = millis();
+    bool received = false;
+    
+    while(millis() - startTime < 3000) {
+      if(Serial.available() > 0) {
+        String msg = Serial.readStringUntil('\n');
+        processMessage(msg);
+        received = true;
+        break;
+      }
+    }
+    
+    if(!received) {
+      processMessage("TRASH"); // Default if no data
+    }
+    
+    delay(1000); // Object clearance time
+    startMotor();
+  }
+}
+
+void processMessage(String msg) {
+  msg.trim(); // Clean input
+  if(msg == "RED") {
+    moveServo(30);
+    countred++;
+  } 
+  else if(msg == "BLUE") {
+    moveServo(120);
+    countblue++;
+  }
+  else {
+    moveServo(0);
+    counttrash++;
+  }
+  displayData();
+}
+
+void moveServo(int angle) {
+  angle = constrain(angle, 0, 180);
+  sortingServo.write(angle);
+  delay(700); // Increased movement time
+}
+
+void displayData() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("B:" + String(countblue));
+  lcd.setCursor(8, 0);
+  lcd.print("R:" + String(countred));
+  lcd.setCursor(0, 1);
+  lcd.print("Trash:" + String(counttrash));
+}
+
+void stopMotor() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  analogWrite(enA, 0);
+}
+
+void startMotor() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, HIGH);
+  analogWrite(enA, 150);
+}
+
+int dist() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  long duration = pulseIn(echoPin, HIGH);
+  return duration * 0.034 / 2;
+}
