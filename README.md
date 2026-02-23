@@ -2,7 +2,7 @@ Color-Based Automated Sorting System
 <br>
 
 A vision-based object classifier that sorts using color detection and a single actuator.<br>
---> Introduction<br>
+--> Introduction <br>
 
 -This project is a real-time object classifier that uses a conveyor belt and computer vision to sort objects based on color (Red, Blue, or Trash) and display a counter for each. Built using OpenCV, Arduino Uno, and a custom servo-controlled arm.<br><br>
 
